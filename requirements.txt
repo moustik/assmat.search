@@ -1,2 +1,4 @@
 camelot-py[cv]
 flask
+geopy
+folium
