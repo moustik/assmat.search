@@ -1,3 +1,5 @@
+import os.path
+
 import optparse
 import hashlib
 import pickle
@@ -10,7 +12,9 @@ import geopy.extra.rate_limiter
 
 import folium
 
-from flask import Flask
+from flask import Flask, render_template, request, redirect
+from flask_bootstrap import Bootstrap
+from werkzeug.utils import secure_filename
 
 GEOCODE_CACHE = {}
 GEOCODE_CACHE_FILE = "geocode_cache.csv"
@@ -143,11 +147,35 @@ def create_map(data):
 
 
 app = Flask(__name__)
+bootstrap = Bootstrap()
+bootstrap.init_app(app)
+
+app.config["IMAGE_UPLOADS"] = "/tmp/uploads"
 
 
-@app.route('/')
-def index():
-    return create_map(DATA)._repr_html_()
+@app.route("/", methods=["GET"])
+def upload():
+    return render_template("upload.html")
+
+
+@app.route("/view", methods=["GET", "POST"])
+def view_data():
+    if request.method == "POST":
+        if request.files:
+            pdf_file = request.files["pdf"]
+            if pdf_file.filename == "":
+                print("No filename")
+                return redirect(request.url)
+            filename = secure_filename(pdf_file.filename)
+
+            pdf_filename = os.path.join(app.config["IMAGE_UPLOADS"], filename)
+            pdf_file.save(pdf_filename)
+
+            GEOCODE_CACHE = pull_cache()
+            data = prepare_data_from_pdf(pdf_filename)
+
+            return create_map(data)._repr_html_()
+    return redirect("/")
 
 
 parser = optparse.OptionParser()
@@ -171,21 +199,21 @@ if __name__ == '__main__':
     options, remainder = parser.parse_args()
 
     GEOCODE_CACHE = pull_cache()
-    DATA = prepare_data_from_pdf(options.in_filename, options.out_filename)
 
-    #    DATA.loc[DATA['location'].isnull()] = add_geocode_to_dataset(
-    #        DATA.loc[DATA['location'].isnull()],
-    #        geopy.geocoders.ArcGIS(),
-    #        use_cache=False)
+    if options.save_map:  # we are in commandline mode
+        data = prepare_data_from_pdf(options.in_filename, options.out_filename)
+        save_cache()
 
-    #DATA['locationarcgis'] = add_geocode_to_dataset(DATA,
-    #                                                geopy.geocoders.ArcGIS(),
-    #                                                use_cache=False)
-    #DATA.to_csv("/tmp/compare_geolocators.csv")
+        #    data.loc[DATA['location'].isnull()] = add_geocode_to_dataset(
+        #        data.loc[DATA['location'].isnull()],
+        #        geopy.geocoders.ArcGIS(),
+        #        use_cache=False)
 
-    save_cache()
+        #data['locationarcgis'] = add_geocode_to_dataset(data,
+        #                                                geopy.geocoders.ArcGIS(),
+        #                                                use_cache=False)
+        #data.to_csv("/tmp/compare_geolocators.csv")
 
-    if options.save_map:
-        create_map(DATA).save(options.save_map)
+        create_map(data).save(options.save_map)
     else:
         app.run(debug=True)
