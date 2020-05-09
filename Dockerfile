@@ -6,7 +6,7 @@ RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
 RUN apt update \
-  && apt install -y libglib2.0-0 libsm6 libxext6\
+  && apt install -y libglib2.0-0 libsm6 libxext6 libxrender1 ghostscript\
   && rm -rf /var/lib/apt/lists/*
 
 
@@ -15,9 +15,6 @@ ADD ./requirements.txt /usr/src/app/requirements.txt
 
 # install requirements
 RUN pip install -r requirements.txt
-
-RUN apt update
-RUN apt update && apt install -y libxrender1 ghostscript
 
 # copy project
 COPY . /usr/src/app
