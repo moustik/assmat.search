@@ -13,6 +13,8 @@
     {%- block styles %}
     <!-- Bootstrap -->
     <link href="{{bootstrap_find_resource('css/bootstrap.css', cdn='bootstrap')}}" rel="stylesheet">
+    <!-- Bootstrap again for spinners ... -->
+    <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css">
     {%- endblock styles %}
     {%- endblock head %}
   </head>
@@ -20,12 +22,16 @@
     {% block body -%}
     {% block navbar %}
     {%- endblock navbar %}
+      <div id="map">
+      </div>
     {% block content -%}
     {%- endblock content %}
 
     {% block scripts %}
     <script src="{{bootstrap_find_resource('jquery.js', cdn='jquery')}}"></script>
     <script src="{{bootstrap_find_resource('js/bootstrap.js', cdn='bootstrap')}}"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+    <script src="static/js/application.js"></script>
     {%- endblock scripts %}
     {%- endblock body %}
   </body>

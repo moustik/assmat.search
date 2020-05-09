@@ -11,17 +11,17 @@
       <h1>Upload an image</h1>
       <hr>
 
-      <form action="/view" method="POST" enctype="multipart/form-data">
+      <form id="upload-form" method="POST" action='#'>
 
         <div class="form-group">
           <label>Select file</label>
           <div class="custom-file">
             <input type="file" class="custom-file-input" name="pdf" id="pdf">
-            <label class="custom-file-label" for="image">Select file...</label>
+            <label class="custom-file-label" for="pdf">Select file...</label>
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary">Upload</button>
+        <button type="submit" value="upload" class="btn btn-primary">Upload</button>
 
       </form>
 

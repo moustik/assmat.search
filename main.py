@@ -4,6 +4,8 @@ import optparse
 import hashlib
 import pickle
 
+from threading import Lock
+
 import pandas
 import camelot
 
@@ -15,9 +17,12 @@ import folium
 from flask import Flask, render_template, request, redirect
 from flask_bootstrap import Bootstrap
 from werkzeug.utils import secure_filename
+from flask_socketio import SocketIO, emit
 
 GEOCODE_CACHE = {}
 GEOCODE_CACHE_FILE = "geocode_cache.csv"
+
+CAMELOT_MUTEX = Lock()
 
 
 def hasher(s):
@@ -71,7 +76,8 @@ def prepare_data_from_pdf(pdf_filename, csv_filename=None):
     """
     headers_pdf = ['Nom', 'Prenom', 'Adresse', 'Tel']
 
-    tables = camelot.read_pdf(pdf_filename, pages='all')
+    with CAMELOT_MUTEX:
+        tables = camelot.read_pdf(pdf_filename, pages='all')
 
     # assemble tables from different pages as one.
     assembled_table = pandas.DataFrame()
@@ -149,8 +155,14 @@ def create_map(data):
 app = Flask(__name__)
 bootstrap = Bootstrap()
 bootstrap.init_app(app)
+socketio = SocketIO(app)
 
 app.config["IMAGE_UPLOADS"] = "/tmp/uploads"
+
+
+@socketio.on('client_connected', namespace='/test')
+def handle_client_connect_event(json):
+    print('received json: {0}'.format(str(json)))
 
 
 @app.route("/", methods=["GET"])
@@ -160,22 +172,30 @@ def upload():
 
 @app.route("/view", methods=["GET", "POST"])
 def view_data():
+    request.sid = request.form.get("sid", None)
     if request.method == "POST":
         if request.files:
             pdf_file = request.files["pdf"]
             if pdf_file.filename == "":
                 print("No filename")
                 return redirect(request.url)
-            filename = secure_filename(pdf_file.filename)
+            filename = secure_filename("{}.{}.pdf".format(
+                pdf_file.filename[:-4], request.sid))
 
             pdf_filename = os.path.join(app.config["IMAGE_UPLOADS"], filename)
             pdf_file.save(pdf_filename)
+            emit('display_message',
+                 {'data': "Fichier téléversé, traitement en cours"},
+                 namespace='/test')
 
             GEOCODE_CACHE = pull_cache()
             data = prepare_data_from_pdf(pdf_filename)
+            emit('display_message',
+                 {'data': "Traitement terminé. La carte arrive"},
+                 namespace='/test')
 
             return create_map(data)._repr_html_()
-    return redirect("/")
+    return None
 
 
 parser = optparse.OptionParser()
@@ -216,4 +236,4 @@ if __name__ == '__main__':
 
         create_map(data).save(options.save_map)
     else:
-        app.run(debug=True)
+        socketio.run(app, debug=True)
