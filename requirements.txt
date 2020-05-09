@@ -1,5 +1,6 @@
 camelot-py[cv]
-flask
-flask_bootstrap
 geopy
 folium
+flask
+flask-bootstrap4
+flask-socketio

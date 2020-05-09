@@ -12,7 +12,7 @@ bootstrap = Bootstrap()
 bootstrap.init_app(app)
 socketio = SocketIO(app)
 
-app.config["IMAGE_UPLOADS"] = "/tmp/uploads"
+app.config["IMAGE_UPLOADS"] = "/tmp"
 
 
 @socketio.on('client_connected', namespace='/test')
@@ -40,13 +40,11 @@ def view_data():
 
             pdf_filename = os.path.join(app.config["IMAGE_UPLOADS"], filename)
             pdf_file.save(pdf_filename)
-            print(request.sid)
             emit('display_message',
                  {'data': "Fichier téléversé, traitement en cours"},
                  namespace='/test')
 
             geocode_cache = pull_cache()
-            print(geocode_cache)
             data = prepare_data_from_pdf(pdf_filename, cache=geocode_cache)
             emit('display_message',
                  {'data': "Traitement terminé. La carte arrive"},

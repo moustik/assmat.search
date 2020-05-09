@@ -183,4 +183,4 @@ if __name__ == '__main__':
 
         create_map(data).save(options.save_map)
     else:
-        app.socketio.run(app.app, debug=True)
+        app.socketio.run(app.app, debug=True, host="0.0.0.0")
