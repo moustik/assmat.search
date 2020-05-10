@@ -204,7 +204,7 @@ def create_map(data):
         folium_map,
         icon,
     ))
-    return folium_map
+
     folium_map = legend.add_categorical_legend(folium_map,
                                                "Positionnement",
                                                colors=['#59c7f9', 'orange'],
