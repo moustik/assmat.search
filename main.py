@@ -23,21 +23,21 @@ def hasher(s):
     return hashlib.md5(s.encode("utf-8")).hexdigest()
 
 
-def pull_cache():
+def pull_cache(geocode_cache_file=GEOCODE_CACHE_FILE):
     try:
-        with open(GEOCODE_CACHE_FILE, "rb") as f:
+        with open(geocode_cache_file, "rb") as f:
             return pickle.load(f)
     except:
         print("no cache found for geocodes")
         return {}
 
 
-def save_cache(geocode_cache):
-    with open(GEOCODE_CACHE_FILE, 'wb') as f:  # Just use 'w' mode in 3.x
+def save_cache(geocode_cache, geocode_cache_file=GEOCODE_CACHE_FILE):
+    with open(geocode_cache_file, 'wb') as f:  # Just use 'w' mode in 3.x
         pickle.dump(geocode_cache, f)
 
 
-def fetch_geocode(address, provider_geocode, cache={}):
+def fetch_geocode(address, provider_geocode, cache=None):
     """Fetch geocode from address. Will build a cache by default to respect the
     providers servers.
 
@@ -167,8 +167,9 @@ if __name__ == '__main__':
 
     geocode_cache = pull_cache()
 
-    if options.save_map:  # we are in commandline mode
-        data = prepare_data_from_pdf(options.in_filename, options.out_filename)
+    if options.in_filename:  # we are in commandline mode
+        data = prepare_data_from_pdf(options.in_filename, geocode_cache,
+                                     options.out_filename)
         save_cache(geocode_cache)
 
         #    data.loc[DATA['location'].isnull()] = add_geocode_to_dataset(
@@ -181,6 +182,7 @@ if __name__ == '__main__':
         #                                                use_cache=False)
         #data.to_csv("/tmp/compare_geolocators.csv")
 
-        create_map(data).save(options.save_map)
+        if options.save_map:
+            create_map(data).save(options.save_map)
     else:
         app.socketio.run(app.app, debug=True, host="0.0.0.0")

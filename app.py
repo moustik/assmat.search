@@ -13,6 +13,7 @@ bootstrap.init_app(app)
 socketio = SocketIO(app)
 
 app.config["IMAGE_UPLOADS"] = "/tmp"
+app.config["CACHE_DIR"] = os.environ.get("CACHE_DIR", default="")
 
 
 @socketio.on('client_connected', namespace='/test')
@@ -44,12 +45,14 @@ def view_data():
                  {'data': "Fichier téléversé, traitement en cours"},
                  namespace='/test')
 
-            geocode_cache = pull_cache()
+            cache_file = os.path.join(app.config["CACHE_DIR"],
+                                      GEOCODE_CACHE_FILE)
+            geocode_cache = pull_cache(cache_file)
             data = prepare_data_from_pdf(pdf_filename, cache=geocode_cache)
             emit('display_message',
                  {'data': "Traitement terminé. La carte arrive"},
                  namespace='/test')
-            save_cache(geocode_cache)
+            save_cache(geocode_cache, cache_file)
 
             return create_map(data)._repr_html_()
     return None
