@@ -50,6 +50,11 @@ $(document).ready(function(){
             success: function(data) {
                 console.log('Success!');
                 $('#map').html(data);
+                $('html').animate({ scrollTop: $('body').height() }, 1000);
+            },
+            error: function(data) {
+                console.log(data);
+                $('#map').html('<div class="text-center"><p>Le traitement a échoué. Vous pouvez retenter ... ou pas.</p><p>'+data.responseJSON.message+'</p></div>');
 
             },
         });

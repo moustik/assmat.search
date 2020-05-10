@@ -8,6 +8,7 @@ import pandas
 import camelot
 
 import geopy
+import geopy.distance
 import geopy.extra.rate_limiter
 
 import folium
@@ -42,7 +43,8 @@ def fetch_geocode(address, provider_geocode, cache=None):
     providers servers.
 
     """
-    hash_address = hasher(address)
+    hash_address = hasher(address + provider_geocode.func.__qualname__)
+    print(provider_geocode.func.__qualname__)
     if cache and hash_address in cache:
         return cache.get(hash_address)
     else:
@@ -73,6 +75,16 @@ def prepare_data_from_pdf(pdf_filename, cache=None, csv_filename=None):
     with CAMELOT_LOCK:
         tables = camelot.read_pdf(pdf_filename, pages='all')
 
+    if len(tables) < 2:
+        raise ValueError(
+            "Le document est illisible (scanné ?) ou ne contient pas 2 tableaux sur sa première page"
+        )
+    elif tables[1].shape[1] != 4:
+        raise ValueError(
+            "{} colonnes trouvées. Il ne devrait y en avoir 4 exactement :</br> Attendu {}"
+            .format(tables[1].shape[1],
+                    ["Nom", "Prenom", "Adresse", "Telephone 1"]))
+
     # assemble tables from different pages as one.
     assembled_table = pandas.DataFrame()
     for table in tables[1:]:
@@ -91,19 +103,51 @@ def prepare_data_from_pdf(pdf_filename, cache=None, csv_filename=None):
     if csv_filename:
         assembled_table.to_csv(csv_filename)
 
-    # add a location column with geocodes
-    assembled_table['location'] = add_geocode_to_dataset(
-        assembled_table,
-        geopy.geocoders.Nominatim(user_agent="assmat-prepare"), cache)
+    try:
+        # add a location column with geocodes
+        assembled_table['location'] = add_geocode_to_dataset(
+            assembled_table,
+            geopy.geocoders.Nominatim(user_agent="assmat-prepare"), cache)
+
+        assembled_table['locationarcgis'] = add_geocode_to_dataset(
+            assembled_table, geopy.geocoders.ArcGIS(), cache=cache)
+    except:
+        raise RuntimeError(
+            "Erreur dans la géocodification des adresses : Les fournisseurs sont peut-être indisponibles"
+        )
 
     # save again with geocodes
     if csv_filename:
         assembled_table.to_csv("{}_geocode.csv".format(csv_filename[:-4]))
 
-    # fix encoding for web visualisation
-    for field in ["Nom", "Prenom", "Adresse"]:
-        assembled_table["w" + field] = assembled_table[field].apply(
-            lambda x: repr(bytes(x, encoding="utf-16le"))[2:-1])
+    try:
+        # fix encoding for web visualisation
+        for field in ["Nom", "Prenom", "Adresse"]:
+            assembled_table["w" + field] = assembled_table[field].apply(
+                lambda x: repr(bytes(x, encoding="utf-16le"))[2:-1])
+    except:
+        raise RuntimeError("Erreur dans les adresses reçus")
+
+    try:
+        d = geopy.distance.distance
+
+        assembled_table['diff'] = assembled_table.apply(
+            lambda row: d(row['location'], row['locationarcgis']), axis=1)
+        assembled_table['dif50'] = assembled_table.apply(
+            lambda row: d(row['location'], row['locationarcgis']) > .05,
+            axis=1)
+        assembled_table['dif100'] = assembled_table.apply(
+            lambda row: d(row['location'], row['locationarcgis']) > .1, axis=1)
+        assembled_table['dif500'] = assembled_table.apply(
+            lambda row: d(row['location'], row['locationarcgis']) > .5, axis=1)
+        assembled_table['tocentern'] = assembled_table.apply(
+            lambda row: d(row['location'], (45.7452567, 4.8416748, 0)), axis=1)
+        assembled_table['tocentera'] = assembled_table.apply(
+            lambda row: d(row['locationarcgis'], (45.7452567, 4.8416748, 0)),
+            axis=1)
+    except:
+        raise RuntimeError(
+            "Les traitements complémentaires n'ont pu être effectués")
 
     return assembled_table
 
@@ -123,17 +167,25 @@ def add_marker(row, fmap, icon, popup_template=POPUP_TEMPLATE):
     popup_template: string template
 
     """
-    if row["location"]:
-        folium.Marker([row["location"][0], row["location"][1]],
+    location_field = "locationarcgis"
+    icon = folium.map.Icon(
+        color='orange' if row["dif50"] or row["tocentera"] > 2
+        or row["tocentern"] > 2 else 'blue',
+        icon='user')
+    if row[location_field]:
+        folium.Marker([row[location_field][0], row[location_field][1]],
                       popup=popup_template.format(**row),
                       icon=icon).add_to(fmap)
+
+
+import legend
 
 
 def create_map(data):
     start_lat = 45.7452567
     start_lng = 4.8416748
     folium_map = folium.Map(location=[start_lat, start_lng],
-                            zoom_start=15,
+                            zoom_start=14,
                             control_scale=True)
 
     icon = None
@@ -142,6 +194,10 @@ def create_map(data):
         icon,
     ))
 
+    folium_map = legend.add_categorical_legend(folium_map,
+                                               "Positionnement",
+                                               colors=['#59c7f9', 'orange'],
+                                               labels=['correct', 'incertain'])
     return folium_map
 
 
@@ -150,7 +206,7 @@ parser.add_option(
     '-i',
     '--input',
     dest="in_filename",
-    default="default.pdf",
+    default=None,
 )
 
 parser.add_option(
@@ -177,12 +233,16 @@ if __name__ == '__main__':
         #        geopy.geocoders.ArcGIS(),
         #        use_cache=False)
 
-        #data['locationarcgis'] = add_geocode_to_dataset(data,
-        #                                                geopy.geocoders.ArcGIS(),
-        #                                                use_cache=False)
         #data.to_csv("/tmp/compare_geolocators.csv")
+        save_cache(geocode_cache)
+
+        print(data)
+        print(data.shape)
+        print(data.loc[data['location'].isnull()
+                       & data['locationarcgis'].isnull()])
 
         if options.save_map:
             create_map(data).save(options.save_map)
+
     else:
         app.socketio.run(app.app, debug=True, host="0.0.0.0")

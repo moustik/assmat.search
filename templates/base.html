@@ -22,10 +22,38 @@
     {% block body -%}
     {% block navbar %}
     {%- endblock navbar %}
-      <div id="map">
+      <div class="container">
+          <h4>Avertissement</h4>
+          <p>Ceci est un outil d'aide à la décision. Il est automatique. Plus de
+          95% des positionnements semble être bons mais des erreurs peuvent en
+          résulter :
+          </br>
+          <b>Faux positif</b> : une personne est marquée proche de chez vous mais
+          son adresse indique l'autre bout de l'arrondissement.
+          </br>
+          <b>Faux négatif</b> : l'outil positionne un marqueur loin alors que
+          son adresse (dans la bulle) est proche de chez vous
+          </br>
+          La couleur orange des marqueurs est un indicateur de fiabilité, pas une valeur sûre.
+          </br>
+          </br>
+          Les données sont traitées automatiquement et ne résident pas sur le
+          serveur.  Il n'est donc pas possible de corriger ces informations.
+          Voyez avec le fournisseur du document ou les fournisseurs d'adresses
+          Nominatim et ArcGIS directement pour rectification.
+
+          </br>
+          </br>
+          Le PDF est un format peu stable, il est possible que votre document ne
+          soit pas lisible.
+          </p>
       </div>
+
     {% block content -%}
     {%- endblock content %}
+      <div class="container"></div>
+      <div id="map" class="container mt-5 mb-5">
+      </div>
 
     {% block scripts %}
     <script src="{{bootstrap_find_resource('jquery.js', cdn='jquery')}}"></script>
