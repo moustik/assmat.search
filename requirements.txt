@@ -4,3 +4,4 @@ folium
 flask
 flask-bootstrap4
 flask-socketio
+lxml

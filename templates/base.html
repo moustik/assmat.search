@@ -46,12 +46,24 @@
           </br>
           Le PDF est un format peu stable, il est possible que votre document ne
           soit pas lisible.
+          </br>
+          Les formats du Grand Lyon sont aussi amené a évoluer et ne pourrait
+          plus fonctionner à l'avenir.
           </p>
       </div>
-
-    {% block content -%}
-    {%- endblock content %}
-      <div class="container"></div>
+      <div class="container">
+          <h4>Instructions</h4>
+          <p> Sur le service du
+              <a href='https://www.grandlyon.com/services/je-cherche-une-assistante-maternelle.html'>Grand Lyon</a>,
+              faire votre recherche d'assistante maternelle. Attention une grande sélection (~400) pourra prendre jusqu'à 5-10 minutes à générer</p>
+          <p>Lancer la recherche puis cliquer sur <i>Imprimer les résultats</i></p>
+          <p>Fermer la popup d'impression mais sauvegarder le résultat (<i>Clique droit - Sauvegarder</i>)</p>
+          <p>Choisir <i>Page Web, HTML uniquement</i>, le nom de fichier doit terminer en .html</p>
+          <p>Téléverser le fichier ci dessous</p>
+      </div>
+      {% block content -%}
+      {%- endblock content %}
+          <div class="container"></div>
       <div id="map" class="container mt-5 mb-5">
       </div>
 

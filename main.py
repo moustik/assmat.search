@@ -66,7 +66,7 @@ def add_geocode_to_dataset(dataset, provider, cache=None):
                          axis=1)
 
 
-def prepare_data_from_pdf(pdf_filename, cache=None, csv_filename=None):
+def prepare_data_from_pdf(pdf_filename):
     """
 
     """
@@ -75,6 +75,7 @@ def prepare_data_from_pdf(pdf_filename, cache=None, csv_filename=None):
     with CAMELOT_LOCK:
         tables = camelot.read_pdf(pdf_filename, pages='all')
 
+    assembled_table = pandas.DataFrame(columns=headers_pdf)
     if len(tables) < 2:
         raise ValueError(
             "Le document est illisible (scanné ?) ou ne contient pas 2 tableaux sur sa première page"
@@ -84,15 +85,24 @@ def prepare_data_from_pdf(pdf_filename, cache=None, csv_filename=None):
             "{} colonnes trouvées. Il ne devrait y en avoir 4 exactement :</br> Attendu {}"
             .format(tables[1].shape[1],
                     ["Nom", "Prenom", "Adresse", "Telephone 1"]))
+    else:
+        # assemble tables from different pages as one.
+        #assembled_table = pandas.DataFrame()
+        for table in tables[1:]:
+            tmp = pandas.DataFrame(table.df)
+            if assembled_table.size == 0:  # we are dealing with the very first table
+                tmp.drop(tmp.head(1).index,
+                         inplace=True)  # remove column titles
+            tmp.columns = headers_pdf
+            assembled_table = pandas.concat([assembled_table, tmp])
 
-    # assemble tables from different pages as one.
-    assembled_table = pandas.DataFrame()
-    for table in tables[1:]:
-        tmp = pandas.DataFrame(table.df)
-        if assembled_table.size == 0:  # we are dealing with the very first table
-            tmp.drop(tmp.head(1).index, inplace=True)  # remove column titles
-        tmp.columns = headers_pdf
-        assembled_table = pandas.concat([assembled_table, tmp])
+    assembled_table['Email'] = ""
+    assembled_table['Misc'] = ""
+
+    return assembled_table
+
+
+def enrich_data(assembled_table, cache=None, csv_filename=None):
 
     # clean up unnecessary line returns in addresses
     assembled_table = assembled_table.replace('\n', '', regex=True)
@@ -154,7 +164,8 @@ def prepare_data_from_pdf(pdf_filename, cache=None, csv_filename=None):
 
 POPUP_TEMPLATE = ("<b>{wNom:s} {wPrenom!s}</b></br>"
                   "{wAdresse}</br>"
-                  "<p><nobr>{Tel}</nobr></p>")
+                  "<p><nobr>{Tel}</nobr></br><nobr>{Email}</nobr></p>"
+                  "<p>{Misc}<p>")
 
 
 def add_marker(row, fmap, icon, popup_template=POPUP_TEMPLATE):
@@ -169,8 +180,8 @@ def add_marker(row, fmap, icon, popup_template=POPUP_TEMPLATE):
     """
     location_field = "locationarcgis"
     icon = folium.map.Icon(
-        color='orange' if row["dif50"] or row["tocentera"] > 2
-        or row["tocentern"] > 2 else 'blue',
+        color='orange' if row["dif50"] or row["tocentera"] > 20
+        or row["tocentern"] > 20 else 'blue',
         icon='user')
     if row[location_field]:
         folium.Marker([row[location_field][0], row[location_field][1]],
@@ -193,7 +204,7 @@ def create_map(data):
         folium_map,
         icon,
     ))
-
+    return folium_map
     folium_map = legend.add_categorical_legend(folium_map,
                                                "Positionnement",
                                                colors=['#59c7f9', 'orange'],
@@ -218,14 +229,24 @@ parser.add_option(
 
 parser.add_option("-s", "--save", dest="save_map", default=None)
 
+import grandlyon
 if __name__ == '__main__':
     options, remainder = parser.parse_args()
 
     geocode_cache = pull_cache()
 
     if options.in_filename:  # we are in commandline mode
-        data = prepare_data_from_pdf(options.in_filename, geocode_cache,
-                                     options.out_filename)
+        #dataN = prepare_data_from_pdf(options.in_filename)
+        #dataN = enrich_data(dataN, geocode_cache, csv_filename=None)
+        #dataS = prepare_data_from_pdf(
+        #    "/tmp/Copie de edition ass mat au 06-03-2020 (SUD)-.pdf",
+        #    geocode_cache, options.out_filename)
+        #data = pandas.concat([dataS, dataN])
+        #data = dataN
+        data = grandlyon.prepare_data_from_html(options.in_filename)
+        data = enrich_data(data,
+                           geocode_cache,
+                           csv_filename=options.out_filename)
         save_cache(geocode_cache)
 
         #    data.loc[DATA['location'].isnull()] = add_geocode_to_dataset(

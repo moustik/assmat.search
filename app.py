@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 from flask_socketio import SocketIO, emit
 
 from main import *
+import grandlyon
 
 app = Flask(__name__)
 bootstrap = Bootstrap()
@@ -32,15 +33,17 @@ def view_data():
     if request.method == "POST":
         print(request.files)
         if request.files:
-            pdf_file = request.files["pdf"]
-            if pdf_file.filename == "":
+            data_file = request.files["pdf"]
+            if data_file.filename == "":
                 print("No filename")
                 return jsonify({'message': 'Aucun fichier envoyé'}), 500
-            filename = secure_filename("{}.{}.pdf".format(
-                pdf_file.filename[:-4], request.sid))
 
-            pdf_filename = os.path.join(app.config["IMAGE_UPLOADS"], filename)
-            pdf_file.save(pdf_filename)
+            file_no_ext, file_extension = data_file.filename.rsplit('.', 1)
+            filename = secure_filename("{}.{}.{}".format(
+                file_no_ext, request.sid, file_extension))
+
+            data_filename = os.path.join(app.config["IMAGE_UPLOADS"], filename)
+            data_file.save(data_filename)
             emit('display_message',
                  {'data': "Fichier téléversé, traitement en cours"},
                  namespace='/test')
@@ -48,9 +51,17 @@ def view_data():
             cache_file = os.path.join(app.config["CACHE_DIR"],
                                       GEOCODE_CACHE_FILE)
             geocode_cache = pull_cache(cache_file)
-            import traceback
             try:
-                data = prepare_data_from_pdf(pdf_filename, cache=geocode_cache)
+                data = None
+                file_extension = data_filename.rsplit('.', 1)[1]
+                print(file_extension)
+                if file_extension == "pdf":
+                    data = prepare_data_from_pdf(data_filename)
+                elif file_extension == "html":
+                    data = grandlyon.prepare_data_from_html(data_filename)
+
+                data = enrich_data(data, geocode_cache)
+
             except Exception as error:
                 return jsonify({'message': repr(error)}), 500
             emit('display_message',
