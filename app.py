@@ -57,6 +57,22 @@ def view_data():
                     data = prepare_data_from_pdf(data_filename)
                 elif file_extension == "html":
                     data = grandlyon.prepare_data_from_html(data_filename)
+                else:
+                    app.logger.error(
+                        'Mauvais fichier. Doit être .html ou .pdf')
+                    return jsonify({
+                        'message':
+                        'Mauvais fichier. Doit être .html ou .pdf'
+                    }), 500
+
+                if (data.shape[0] < 1):
+                    app.logger.error(
+                        'Le fichier semble vide ou ne comporte pas les bonnes informations'
+                    )
+                    return jsonify({
+                        'message':
+                        'Le fichier semble vide ou ne comporte pas les bonnes informations: Noms prénom, adresses et tel au minimum'
+                    }), 500
 
                 data = enrich_data(data, geocode_cache)
 
