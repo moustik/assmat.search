@@ -1,6 +1,7 @@
 import optparse
 import hashlib
 import pickle
+import pathlib
 
 from threading import Lock
 
@@ -18,6 +19,8 @@ import app
 GEOCODE_CACHE_FILE = "geocode_cache.csv"
 
 CAMELOT_LOCK = Lock()
+
+### Geocoding utilities
 
 
 def hasher(s):
@@ -44,11 +47,9 @@ def fetch_geocode(address, provider_geocode, cache=None):
 
     """
     hash_address = hasher(address + provider_geocode.func.__qualname__)
-    print(provider_geocode.func.__qualname__)
     if cache and hash_address in cache:
         return cache.get(hash_address)
     else:
-        print("fetching {}".format(address))
         point = None
         location = provider_geocode(address)
         if location:
@@ -66,8 +67,11 @@ def add_geocode_to_dataset(dataset, provider, cache=None):
                          axis=1)
 
 
+## Data processing
+
+
 def prepare_data_from_pdf(pdf_filename):
-    """
+    """Prepare data into a Dataframe from a pdf file
 
     """
     headers_pdf = ['Nom', 'Prenom', 'Adresse', 'Tel']
@@ -121,10 +125,10 @@ def enrich_data(assembled_table, cache=None, csv_filename=None):
 
         assembled_table['locationarcgis'] = add_geocode_to_dataset(
             assembled_table, geopy.geocoders.ArcGIS(), cache=cache)
-    except:
+    except Exception as e:
         raise RuntimeError(
             "Erreur dans la géocodification des adresses : Les fournisseurs sont peut-être indisponibles"
-        )
+        ) from e
 
     # save again with geocodes
     if csv_filename:
@@ -132,7 +136,7 @@ def enrich_data(assembled_table, cache=None, csv_filename=None):
 
     try:
         # fix encoding for web visualisation
-        for field in ["Nom", "Prenom", "Adresse"]:
+        for field in ["Nom", "Prenom", "Adresse", "Misc"]:
             assembled_table["w" + field] = assembled_table[field].apply(
                 lambda x: repr(bytes(x, encoding="utf-16le"))[2:-1])
     except:
@@ -141,17 +145,23 @@ def enrich_data(assembled_table, cache=None, csv_filename=None):
     try:
         d = geopy.distance.distance
 
+        # distance between argis and nominatim data
         assembled_table['diff'] = assembled_table.apply(
             lambda row: d(row['location'], row['locationarcgis']), axis=1)
+        # > 50m
         assembled_table['dif50'] = assembled_table.apply(
             lambda row: d(row['location'], row['locationarcgis']) > .05,
             axis=1)
+        # > 100m
         assembled_table['dif100'] = assembled_table.apply(
             lambda row: d(row['location'], row['locationarcgis']) > .1, axis=1)
+        # > 500m
         assembled_table['dif500'] = assembled_table.apply(
             lambda row: d(row['location'], row['locationarcgis']) > .5, axis=1)
+        # distance of nominatim geocode \to the center of Lyon [Jean Mace]
         assembled_table['tocentern'] = assembled_table.apply(
             lambda row: d(row['location'], (45.7452567, 4.8416748, 0)), axis=1)
+        # distance of ArcGIS geocode \to the center of Lyon [Jean Mace]
         assembled_table['tocentera'] = assembled_table.apply(
             lambda row: d(row['locationarcgis'], (45.7452567, 4.8416748, 0)),
             axis=1)
@@ -161,6 +171,9 @@ def enrich_data(assembled_table, cache=None, csv_filename=None):
 
     return assembled_table
 
+
+## Map visualisation
+import legend
 
 POPUP_TEMPLATE = ("<b>{wNom:s} {wPrenom!s}</b></br>"
                   "{wAdresse}</br>"
@@ -189,9 +202,6 @@ def add_marker(row, fmap, icon, popup_template=POPUP_TEMPLATE):
                       icon=icon).add_to(fmap)
 
 
-import legend
-
-
 def create_map(data):
     start_lat = 45.7452567
     start_lng = 4.8416748
@@ -209,45 +219,50 @@ def create_map(data):
                                                "Positionnement",
                                                colors=['#59c7f9', 'orange'],
                                                labels=['correct', 'incertain'])
+
     return folium_map
 
 
-parser = optparse.OptionParser()
-parser.add_option(
-    '-i',
-    '--input',
-    dest="in_filename",
-    default=None,
-)
-
-parser.add_option(
-    '-o',
-    '--output',
-    dest="out_filename",
-    default=None,
-)
-
-parser.add_option("-s", "--save", dest="save_map", default=None)
-
 import grandlyon
+
 if __name__ == '__main__':
+    parser = optparse.OptionParser()
+    parser.add_option(
+        '-i',
+        '--input',
+        dest="in_filename",
+        default=None,
+    )
+
+    parser.add_option(
+        '-o',
+        '--output',
+        dest="out_filename",
+        default=None,
+    )
+
+    parser.add_option("-s", "--save", dest="save_map", default=None)
+
     options, remainder = parser.parse_args()
 
-    geocode_cache = pull_cache()
-
     if options.in_filename:  # we are in commandline mode
-        #dataN = prepare_data_from_pdf(options.in_filename)
-        #dataN = enrich_data(dataN, geocode_cache, csv_filename=None)
-        #dataS = prepare_data_from_pdf(
-        #    "/tmp/Copie de edition ass mat au 06-03-2020 (SUD)-.pdf",
-        #    geocode_cache, options.out_filename)
-        #data = pandas.concat([dataS, dataN])
-        #data = dataN
-        data = grandlyon.prepare_data_from_html(options.in_filename)
+
+        data = None
+        if pathlib.Path(options.in_filename) == ".pdf":
+            dataN = prepare_data_from_pdf(options.in_filename)
+            dataN = enrich_data(dataN, geocode_cache, csv_filename=None)
+            #dataS = prepare_data_from_pdf(
+            #    "/tmp/Copie de edition ass mat au 06-03-2020 (SUD)-.pdf",
+            #    geocode_cache, options.out_filename)
+            #data = pandas.concat([dataS, dataN])
+            data = dataN
+        elif pathlib.Path(options.in_filename) in [".html", "htm"]:
+            data = grandlyon.prepare_data_from_html(options.in_filename)
+
+        geocode_cache = pull_cache()
         data = enrich_data(data,
                            geocode_cache,
                            csv_filename=options.out_filename)
-        save_cache(geocode_cache)
 
         #    data.loc[DATA['location'].isnull()] = add_geocode_to_dataset(
         #        data.loc[DATA['location'].isnull()],
@@ -266,4 +281,4 @@ if __name__ == '__main__':
             create_map(data).save(options.save_map)
 
     else:
-        app.socketio.run(app.app, debug=True, host="0.0.0.0")
+        app.socketio.run(app.app, host="0.0.0.0")

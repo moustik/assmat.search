@@ -18,7 +18,7 @@ $(document).ready(function(){
     //receive message details from server
     socket.on('display_message', function(msg) {
         console.log(msg)
-        message_string = '<div class="text-center"><p>' + msg.data + '</p>' +
+        message_string = '<div class="text-center alert alert-secondary" role="alert"><p>' + msg.data + '</p>' +
             '<div class="spinner-border" role="status">' +
             '<span class="sr-only">Loading...</span>' +
             '</div></div>';
@@ -54,7 +54,7 @@ $(document).ready(function(){
             },
             error: function(data) {
                 console.log(data);
-                $('#map').html('<div class="text-center"><p>Le traitement a échoué. Vous pouvez retenter ... ou pas.</p><p>'+data.responseJSON.message+'</p></div>');
+                $('#map').html('<div class="text-center alert alert-danger" role="alert"><p>Le traitement a échoué. Vous pouvez retenter ... ou pas.</p><p>'+data.responseJSON.message+'</p></div>');
 
             },
         });

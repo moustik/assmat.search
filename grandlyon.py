@@ -41,7 +41,6 @@ def prepare_data_from_html(filename):
             headers_pdf[5]:
             ", ".join(article.xpath('(./div)[2]//li/text()')),
         }
-        print(row)
         assembled_table = assembled_table.append(row, ignore_index=True)
 
     return assembled_table
