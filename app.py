@@ -54,15 +54,17 @@ def view_data():
             try:
                 file_extension = data_filename.rsplit('.', 1)[1]
                 if file_extension == "pdf":
-                    data = prepare_data_from_pdf(data_filename)
+                    data = grandlyon.prepare_data_from_pdf(data_filename)
                 elif file_extension == "html":
                     data = grandlyon.prepare_data_from_html(data_filename)
+                elif file_extension == "csv":
+                    data = import_csv(data_filename)
                 else:
                     app.logger.error(
-                        'Mauvais fichier. Doit être .html ou .pdf')
+                        'Mauvais fichier. Doit être .html, .csv ou .pdf')
                     return jsonify({
                         'message':
-                        'Mauvais fichier. Doit être .html ou .pdf'
+                        'Mauvais fichier. Doit être .html, .csv ou .pdf'
                     }), 500
 
                 if (data.shape[0] < 1):
@@ -74,6 +76,7 @@ def view_data():
                         'Le fichier semble vide ou ne comporte pas les bonnes informations: Noms prénom, adresses et tel au minimum'
                     }), 500
 
+                data = normalize_data(data)
                 data = enrich_data(data, geocode_cache)
 
             except Exception as error:

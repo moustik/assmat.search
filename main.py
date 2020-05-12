@@ -3,10 +3,7 @@ import hashlib
 import pickle
 import pathlib
 
-from threading import Lock
-
 import pandas
-import camelot
 
 import geopy
 import geopy.distance
@@ -17,8 +14,6 @@ import folium
 import app
 
 GEOCODE_CACHE_FILE = "geocode_cache.csv"
-
-CAMELOT_LOCK = Lock()
 
 ### Geocoding utilities
 
@@ -68,42 +63,20 @@ def add_geocode_to_dataset(dataset, provider, cache=None):
 
 
 ## Data processing
+def import_csv(filename):
+    return pandas.read_csv(filename, keep_default_na=False)
 
 
-def prepare_data_from_pdf(pdf_filename):
-    """Prepare data into a Dataframe from a pdf file
-
-    """
-    headers_pdf = ['Nom', 'Prenom', 'Adresse', 'Tel']
-
-    with CAMELOT_LOCK:
-        tables = camelot.read_pdf(pdf_filename, pages='all')
-
-    assembled_table = pandas.DataFrame(columns=headers_pdf)
-    if len(tables) < 2:
+def normalize_data(data):
+    if "Adresse" not in data.columns:
         raise ValueError(
-            "Le document est illisible (scanné ?) ou ne contient pas 2 tableaux sur sa première page"
+            "La colonne `Adresse` n'apparait pas dans les données. Elle est indispensable pour continuer"
         )
-    elif tables[1].shape[1] != 4:
-        raise ValueError(
-            "{} colonnes trouvées. Il ne devrait y en avoir 4 exactement :</br> Attendu {}"
-            .format(tables[1].shape[1],
-                    ["Nom", "Prenom", "Adresse", "Telephone 1"]))
-    else:
-        # assemble tables from different pages as one.
-        #assembled_table = pandas.DataFrame()
-        for table in tables[1:]:
-            tmp = pandas.DataFrame(table.df)
-            if assembled_table.size == 0:  # we are dealing with the very first table
-                tmp.drop(tmp.head(1).index,
-                         inplace=True)  # remove column titles
-            tmp.columns = headers_pdf
-            assembled_table = pandas.concat([assembled_table, tmp])
+    for column in ['Nom', 'Prenom', 'Tel', 'Ville', 'Email', 'Misc']:
+        if column not in data.columns:
+            data[column] = ""
 
-    assembled_table['Email'] = ""
-    assembled_table['Misc'] = ""
-
-    return assembled_table
+    return data
 
 
 def enrich_data(assembled_table, cache=None, csv_filename=None):
@@ -248,17 +221,20 @@ if __name__ == '__main__':
     if options.in_filename:  # we are in commandline mode
 
         data = None
-        if pathlib.Path(options.in_filename) == ".pdf":
-            dataN = prepare_data_from_pdf(options.in_filename)
+        if pathlib.Path(options.in_filename).suffix == ".pdf":
+            dataN = grandlyon.prepare_data_from_pdf(options.in_filename)
             dataN = enrich_data(dataN, geocode_cache, csv_filename=None)
-            #dataS = prepare_data_from_pdf(
+            #dataS = grandlyon.prepare_data_from_pdf(
             #    "/tmp/Copie de edition ass mat au 06-03-2020 (SUD)-.pdf",
             #    geocode_cache, options.out_filename)
             #data = pandas.concat([dataS, dataN])
             data = dataN
-        elif pathlib.Path(options.in_filename) in [".html", "htm"]:
+        elif pathlib.Path(options.in_filename).suffix in [".html", "htm"]:
             data = grandlyon.prepare_data_from_html(options.in_filename)
+        elif pathlib.Path(options.in_filename) == "csv":
+            data = import_csv(options.in_filename)
 
+        data = normalize_data(data)
         geocode_cache = pull_cache()
         data = enrich_data(data,
                            geocode_cache,
