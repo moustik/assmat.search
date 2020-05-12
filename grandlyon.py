@@ -8,8 +8,6 @@ from lxml.html import parse
 
 CAMELOT_LOCK = Lock()
 
-headers_pdf = ['Nom', 'Prenom', 'Adresse', 'Tel', 'Email', 'Misc']
-
 
 def grab(element, xpath_string):
     try:
@@ -19,33 +17,37 @@ def grab(element, xpath_string):
 
 
 def prepare_data_from_html(filename):
-    doc = parse(filename).getroot()
+    headers_html = ['Nom', 'Prenom', 'Adresse', 'Tel', 'Email', 'Misc']
 
+    doc = parse(filename).getroot()
     articles = doc.xpath('//article')
 
-    assembled_table = pandas.DataFrame(columns=headers_pdf)
+    assembled_table = pandas.DataFrame(columns=headers_html)
     for article in articles:
         row = {
             # Nom prenom
-            headers_pdf[0]:
+            headers_html[0]:
             grab(article, '((./div)[1]/div)[2]/h4/text()'),
             # Prenom vide
-            headers_pdf[1]:
+            headers_html[1]:
             "",
             # Adresse
-            headers_pdf[2]:
+            headers_html[2]:
             grab(article, './/address/span[@itemprop="streetAddress"]/text()'),
             # Telephone
-            headers_pdf[3]:
+            headers_html[3]:
             grab(article, './/span[@itemprop="telephone"]/text()'),
             # Email
-            headers_pdf[4]:
+            headers_html[4]:
             grab(article, '(./div)[2]/div/a/text()'),
             # Misc
-            headers_pdf[5]:
+            headers_html[5]:
             ", ".join(article.xpath('(./div)[2]//li/text()')),
         }
         assembled_table = assembled_table.append(row, ignore_index=True)
+
+        # add utility city column unneeded but for caching sakes
+        assembled_table['Ville'] = "Lyon"
 
     return assembled_table
 
@@ -79,5 +81,8 @@ def prepare_data_from_pdf(pdf_filename):
                          inplace=True)  # remove column titles
             tmp.columns = headers_pdf
             assembled_table = pandas.concat([assembled_table, tmp])
+
+    # add utility city column
+    assembled_table['Ville'] = "Lyon"
 
     return assembled_table

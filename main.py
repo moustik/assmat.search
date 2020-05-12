@@ -67,7 +67,7 @@ def import_csv(filename):
     return pandas.read_csv(filename, keep_default_na=False)
 
 
-def normalize_data(data):
+def normalize_data(data, csv_filename=None):
     if "Adresse" not in data.columns:
         raise ValueError(
             "La colonne `Adresse` n'apparait pas dans les données. Elle est indispensable pour continuer"
@@ -76,28 +76,26 @@ def normalize_data(data):
         if column not in data.columns:
             data[column] = ""
 
-    return data
-
-
-def enrich_data(assembled_table, cache=None, csv_filename=None):
-
     # clean up unnecessary line returns in addresses
-    assembled_table = assembled_table.replace('\n', '', regex=True)
-    # add utility city column
-    assembled_table['Ville'] = "Lyon"
+    data = data.replace('\n', '', regex=True)
 
     # save pdf data to csv
     if csv_filename:
         assembled_table.to_csv(csv_filename)
 
+    return data
+
+
+def enrich_data(data, cache=None, csv_filename=None):
+
     try:
         # add a location column with geocodes
-        assembled_table['location'] = add_geocode_to_dataset(
-            assembled_table,
-            geopy.geocoders.Nominatim(user_agent="assmat-prepare"), cache)
+        data['location'] = add_geocode_to_dataset(
+            data, geopy.geocoders.Nominatim(user_agent="assmat-prepare"),
+            cache)
 
-        assembled_table['locationarcgis'] = add_geocode_to_dataset(
-            assembled_table, geopy.geocoders.ArcGIS(), cache=cache)
+        data['locationarcgis'] = add_geocode_to_dataset(
+            data, geopy.geocoders.ArcGIS(), cache=cache)
     except Exception as e:
         raise RuntimeError(
             "Erreur dans la géocodification des adresses : Les fournisseurs sont peut-être indisponibles"
@@ -105,44 +103,44 @@ def enrich_data(assembled_table, cache=None, csv_filename=None):
 
     # save again with geocodes
     if csv_filename:
-        assembled_table.to_csv("{}_geocode.csv".format(csv_filename[:-4]))
+        data.to_csv("{}_geocode.csv".format(csv_filename[:-4]))
 
     try:
         # fix encoding for web visualisation
         for field in ["Nom", "Prenom", "Adresse", "Misc"]:
-            assembled_table["w" + field] = assembled_table[field].apply(
-                lambda x: repr(bytes(x, encoding="utf-16le"))[2:-1])
+            data["w" + field] = data[field].apply(lambda x: repr(
+                bytes(x, encoding="utf-16le"))[2:-1] if x else "")
     except:
-        raise RuntimeError("Erreur dans les adresses reçus")
+        raise RuntimeError("Erreur d'encodage dans les données")
 
     try:
         d = geopy.distance.distance
 
         # distance between argis and nominatim data
-        assembled_table['diff'] = assembled_table.apply(
+        data['diff'] = data.apply(
             lambda row: d(row['location'], row['locationarcgis']), axis=1)
         # > 50m
-        assembled_table['dif50'] = assembled_table.apply(
+        data['dif50'] = data.apply(
             lambda row: d(row['location'], row['locationarcgis']) > .05,
             axis=1)
         # > 100m
-        assembled_table['dif100'] = assembled_table.apply(
+        data['dif100'] = data.apply(
             lambda row: d(row['location'], row['locationarcgis']) > .1, axis=1)
         # > 500m
-        assembled_table['dif500'] = assembled_table.apply(
+        data['dif500'] = data.apply(
             lambda row: d(row['location'], row['locationarcgis']) > .5, axis=1)
         # distance of nominatim geocode \to the center of Lyon [Jean Mace]
-        assembled_table['tocentern'] = assembled_table.apply(
+        data['tocentern'] = data.apply(
             lambda row: d(row['location'], (45.7452567, 4.8416748, 0)), axis=1)
         # distance of ArcGIS geocode \to the center of Lyon [Jean Mace]
-        assembled_table['tocentera'] = assembled_table.apply(
+        data['tocentera'] = data.apply(
             lambda row: d(row['locationarcgis'], (45.7452567, 4.8416748, 0)),
             axis=1)
     except:
         raise RuntimeError(
             "Les traitements complémentaires n'ont pu être effectués")
 
-    return assembled_table
+    return data
 
 
 ## Map visualisation
@@ -234,7 +232,7 @@ if __name__ == '__main__':
         elif pathlib.Path(options.in_filename) == "csv":
             data = import_csv(options.in_filename)
 
-        data = normalize_data(data)
+        data = normalize_data(data, csv_filename=options.out_filename)
         geocode_cache = pull_cache()
         data = enrich_data(data,
                            geocode_cache,
